@@ -60,6 +60,31 @@ offline$angle = roundOrientation(offline$orientation)
 with(offline, boxplot(orientation ~ angle, xlab = "nearest 45 degree angle",
  ylab="orientation"))
 
-# Selecting the right mac adresses
+# Selecting the right Access Points
 submac = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
+offline = offline[offline$mac %in% submac,]
+dim(offline)
+
+# Checking addresses and channels one to one correspondance
+macChannel = with(offline, table(mac, channel))
+apply(macChannel, 1, function(x) sum(x > 0))
+
+# Getting rid of channels
+offline = offline["channel" != names(offline)]
+
+# Getting rid of worthless positions
+locDF = with(offline, by(offline, list(posX, posY), function(x) x))
+sum(sapply(locDF, is.null))
+locDF = locDF[!sapply(locDF, is.null)]
+length(locDF)
+
+# Displaying the locations
+locCounts = sapply(locDF, nrow)
+locCounts = sapply(locDF, function(df) c(df[1, c("posX", "posY")], count = nrow(df)))
+locCounts = t(locCounts)
+plot(locCounts, type = "n", xlab = "", ylab = "")
+text(locCounts, labels = locCounts[,3], cex = 0.8, srt = 45)
+
+
+
 
