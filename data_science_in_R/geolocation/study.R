@@ -48,8 +48,8 @@ ReadData = function(txt) {
   offline$angle = roundOrientation(offline$orientation)
   
   # Selecting the right Access Points
-  submac = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
-  offline = offline[offline$mac %in% submac,]
+  submacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
+  offline = offline[offline$mac %in% submacs,]
 
   # Getting rid of channels
   offline = offline["channel" != names(offline)]
@@ -77,6 +77,38 @@ locCounts = t(locCounts)
 plot(locCounts, type = "n", xlab = "", ylab = "")
 text(locCounts, labels = locCounts[,3], cex = 0.8, srt = 45)
 
+# Density plots and box plots
+library(lattice)
+bwplot(signal ~ factor(angle) | mac, data = offline, subset = posX == 2 & posY == 12 &
+         mac != "00:0f:a3:39:dd:cd", layout = c(2,3))
+densityplot(~ signal | mac + factor(angle), data = offline, subset = posX == 24 & posY == 4 &
+              mac != "00:0f:a3:39:dd:cd", bw = 0.5, plot.points = FALSE)
 
+# Signal summary
+offline$posXY = paste(offline$posX, offline$posY, sep = "-")
+byLocAngleAP = with(offline, by(offline, list(posXY, angle, mac), function(x) x))
+signalSummary = lapply(byLocAngleAP, function(oneLoc) {
+  summary = oneLoc[1,]
+  summary$medSignal = median(oneLoc$signal)
+  summary$avgSignal = mean(oneLoc$signal)
+  summary$num = length(oneLoc$signal)
+  summary$sdSignal = sd(oneLoc$signal)
+  summary$iqr = IQR(oneLoc$signal)
+  summary
+})
 
+offlineSummary = do.call("rbind", signalSummary)
 
+breaks = seq(-90, -30, by = 5)
+bwplot(sdSignal ~ cut(avgSignal, breaks = breaks),
+       data = offlineSummary,
+       subset = mac != "00:0f:a3:39:dd:cd",
+       xlab = "Mean Signal", ylab = "SD Signal")
+
+# Plotting a signal surface
+submacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
+oneAPAngle = subset(offlineSummary, mac == submacs[5] & angle == 0)
+library(fields)
+smoothSS = Tps(oneAPAngle[,c("posX", "posY")], oneAPAngle$avgSignal)
+vizSmooth = predictSurface(smoothSS)
+plot.surface(vizSmooth, type = "C")
