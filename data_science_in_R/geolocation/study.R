@@ -96,14 +96,25 @@ signalSummary = lapply(byLocAngleAP, function(oneLoc) {
   summary$iqr = IQR(oneLoc$signal)
   summary
 })
-
 offlineSummary = do.call("rbind", signalSummary)
 
+# Box plot of SD of signal vs average signal
 breaks = seq(-90, -30, by = 5)
 bwplot(sdSignal ~ cut(avgSignal, breaks = breaks),
        data = offlineSummary,
        subset = mac != "00:0f:a3:39:dd:cd",
        xlab = "Mean Signal", ylab = "SD Signal")
+
+# smoothing signal
+with(offlineSummary, smoothScatter((avgSignal - medSignal) ~ num), 
+     xlab = "number of observations", ylab = "mean - median")
+abline(h = 0, col = "#989ea3", lwd = 2)
+
+# Other smoothing
+lo.obj = with(offlineSummary, loess(diff ~ num, data.frame(diff = (avgSignal - medSignal), 
+                                                  num = num)))
+lo.obj.pr = predict(lo.obj, data.frame(num = (70:120)))
+lines(x = (70:120), y = lo.obj.pr, col = "#4daf4a", lwd = 2)
 
 # Plotting a signal surface
 submacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
