@@ -1,9 +1,10 @@
 rm(list = ls())
+library(fields)
+library(lattice)
 
 setwd("C:/Users/netmike/Documents/Training/data_science/data_science_in_R/geolocation")
 
 txt = readLines("offline.final.trace.txt")
-
 
 processLine = function (x) {
   tokens = strsplit(x, "[;=,]")[[1]]
@@ -78,7 +79,6 @@ plot(locCounts, type = "n", xlab = "", ylab = "")
 text(locCounts, labels = locCounts[,3], cex = 0.8, srt = 45)
 
 # Density plots and box plots
-library(lattice)
 bwplot(signal ~ factor(angle) | mac, data = offline, subset = posX == 2 & posY == 12 &
          mac != "00:0f:a3:39:dd:cd", layout = c(2,3))
 densityplot(~ signal | mac + factor(angle), data = offline, subset = posX == 24 & posY == 4 &
@@ -118,8 +118,34 @@ lines(x = (70:120), y = lo.obj.pr, col = "#4daf4a", lwd = 2)
 
 # Plotting a signal surface
 submacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
-oneAPAngle = subset(offlineSummary, mac == submacs[5] & angle == 0)
-library(fields)
+oneAPAngle = subset(offlineSummary, mac == submacs[1] & angle == 0)
 smoothSS = Tps(oneAPAngle[,c("posX", "posY")], oneAPAngle$avgSignal)
 vizSmooth = predictSurface(smoothSS)
 plot.surface(vizSmooth, type = "C")
+points(oneAPAngle[,c("posX", "posY")], pch = 19, cex = 0.5)
+
+# Group of surface plots
+surfaceSS <- function(data, m, a) {
+  cat("mac=",m,", angle=", a)
+  oneAPAngle = subset(data, mac == m & angle == a)
+  smoothSS = Tps(oneAPAngle[,c("posX", "posY")], oneAPAngle$avgSignal)
+  vizSmooth = predictSurface(smoothSS)
+  plot.surface(vizSmooth, type = "C")
+  points(oneAPAngle[,c("posX", "posY")], pch = 19, cex = 0.5)
+}
+
+parCur = par(mfrow = c(2,2), mar = rep(1, 4))
+mapply(surfaceSS, m = submacs[ rep(c(1, 2), each = 2) ],
+       a = rep(c(0, 135), 2),
+       data = list(data = offlineSummary))
+par(parCur)
+
+# Computing the distance
+offlineSummary = subset(offlineSummary, mac != submacs[2])
+AP = matrix( c( 7.5, 6.3, 2.5, -.8, 12.8, -2.8,
+                1, 14, 33.5, 9.3, 33.5, 2.8),
+             ncol = 2, byrow = TRUE, dimnames = list(submacs[-2], c("x","y")))
+diffs = offlineSummary[, c("posX", "posY")] - AP[offlineSummary$mac, ]
+offlineSummary$dist = sqrt(diffs[,1]^2 + diffs[,2]^2)
+xyplot(signal ~ dist | factor(mac) + factor(angle), data = offlineSummary, pch = 19, 
+       cex = 0.3, xlab = "distance")
