@@ -4,7 +4,8 @@ library(lattice)
 
 setwd("C:/Users/netmike/Documents/Training/data_science/data_science_in_R/geolocation")
 
-txt = readLines("offline.final.trace.txt")
+
+
 
 processLine = function (x) {
   tokens = strsplit(x, "[;=,]")[[1]]
@@ -21,7 +22,9 @@ roundOrientation = function(angles) {
   c(refs[1:8], 0)[q]
 }
 
-ReadData = function(txt) {
+ReadData = function(csvfile, subMacs = NULL) {
+  
+  txt = readLines(csvfile)
   
   # Creating a data frame
   lines = txt[ substr(txt, 1, 1) != "#" ]
@@ -49,15 +52,17 @@ ReadData = function(txt) {
   offline$angle = roundOrientation(offline$orientation)
   
   # Selecting the right Access Points
-  submacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
-  offline = offline[offline$mac %in% submacs,]
+  if (is.null(subMacs)) {
+    subMacs = names(sort(table(offline$mac), decreasing = TRUE))[1:7]
+  }
+  offline = offline[offline$mac %in% subMacs,]
 
   # Getting rid of channels
   offline = offline["channel" != names(offline)]
   
 }
 
-offline = ReadData(txt)
+offline = ReadData("offline.final.trace.txt")
 
 #orientation
 length(unique(offline$orientation))
@@ -149,3 +154,21 @@ diffs = offlineSummary[, c("posX", "posY")] - AP[offlineSummary$mac, ]
 offlineSummary$dist = sqrt(diffs[,1]^2 + diffs[,2]^2)
 xyplot(signal ~ dist | factor(mac) + factor(angle), data = offlineSummary, pch = 19, 
        cex = 0.3, xlab = "distance")
+
+# Using the online data
+macs = unique(offlineSummary$mac)
+online = ReadData("online.final.trace.txt", subMacs = macs)
+online$posXY = paste(online$posX, online$posY, "-")
+
+length(unique(online$posXY))
+tabonlineXYA = table(online$posXY, online$angle)
+tabonlineXYA = tabonlineXYA[1:6,]
+
+keepVars = c("posXY", "posX", "posY", "orientation", "angle")
+byLoc = with(online, by(online, list(posXY), function(x) {
+   ans = x[1, keepVars]
+   avgSS = tapply(online$signal, online$mac, mean)
+   y = matrix(avgSS, nrow =1, ncol = 6, dimnames = list(ans$posXY, names(avgSS)))
+   cbind(ans, y)
+} ))
+onlineSummary = do.call("rbind", byLoc)
