@@ -160,10 +160,12 @@ macs = unique(offlineSummary$mac)
 online = ReadData("online.final.trace.txt", subMacs = macs)
 online$posXY = paste(online$posX, online$posY, "-")
 
+#####
 length(unique(online$posXY))
 tabonlineXYA = table(online$posXY, online$angle)
 tabonlineXYA = tabonlineXYA[1:6,]
 
+# Creating the online summary
 keepVars = c("posXY", "posX", "posY", "orientation", "angle")
 byLoc = with(online, by(online, list(posXY), function(x) {
    ans = x[1, keepVars]
@@ -172,3 +174,46 @@ byLoc = with(online, by(online, list(posXY), function(x) {
    cbind(ans, y)
 } ))
 onlineSummary = do.call("rbind", byLoc)
+
+# Select training data for given angle
+reshapeSS = function(data, varSignal = "signal",
+                     keepVars = c("posXY", "posX","posY")) {
+  byLocation =
+    with(data, by(data, list(posXY),
+                  function(x) {
+                    ans = x[1, keepVars]
+                    avgSS = tapply(x[ , varSignal ], x$mac, mean)
+                    y = matrix(avgSS, nrow = 1, ncol = 6,
+                               dimnames = list(ans$posXY,
+                                               names(avgSS)))
+                    cbind(ans, y)
+                  }))
+  newDataSS = do.call("rbind", byLocation)
+  return(newDataSS)
+}
+selectTrain <- function(angleNewObs, signals, m) {
+  
+  nearestAngle = roundOrientation(angleNewObs)
+  if (m %% 2 == 1) {
+    angles = seq(-45 * (m - 1) /2, 45 * (m - 1) /2, length = m)
+  } else {
+    m = m + 1
+    angles = seq(-45 * (m - 1) /2, 45 * (m - 1) /2, length = m)
+    if (sign(angleNewObs - nearestAngle) > -1)
+      angles = angles[ -1 ]
+    else
+      angles = angles[ -m ]
+  }
+  
+  angles = angles + nearestAngle
+  angles[angles < 0] = angles[ angles < 0 ] + 360
+  angles[angles > 360] = angles[ angles > 360 ] - 360
+  
+  offlineSubset =
+    offlineSummary[ signals$angle %in% angles, ]
+  trainSS = reshapeSS(offlineSubset, varSignal = "avgSignal")
+  
+  trainSS
+}
+
+train130 = selectTrain(130, offlineSummary, m = 3)
